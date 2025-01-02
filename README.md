@@ -34,10 +34,6 @@ pip install -r ./requirements.txt
 > sh ./downloads.sh
 > ```
 
-> [!TIP] 
-> unzip the dataset zip file in datasets directory
-> make sure the `train-v1.1.json` in `./datasets/squad` and `hotpot_train_v1.1.json` in `./datasets/hotpotqa`
-
 > [!IMPORTANT]
 > create `.env` file by `.env.template` and input the keys required
 > ```bash

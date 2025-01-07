@@ -25,8 +25,7 @@ global model_name, model, tokenizer
 global rand_seed
 
 
-# Assume input_ids is your initial input sequence tensor, and max_length is the target length for decoding
-# Define the maximum length for decoding
+
 def generate(
     model,
     input_ids: torch.Tensor,
@@ -34,68 +33,41 @@ def generate(
     max_new_tokens: int = 300
 ) -> torch.Tensor:
     """
-    Generate text with proper device handling for HuggingFace models using device_map="auto"
+    Generate text with greedy decoding.
 
     Args:
         model: HuggingFace model with automatic device mapping
         input_ids: Input token ids
-        past_key_values: Previous KV cache
-        max_length: Maximum sequence length to generate
+        past_key_values: KV Cache for knowledge
+        max_new_tokens: Maximum new tokens to generate
     """
-    # Get the device of the embedding layer
+
     embed_device = model.model.embed_tokens.weight.device
 
     origin_ids = input_ids
-    # Move input to the same device as embedding layer
     input_ids = input_ids.to(embed_device)
 
-    # Initialize output tensor on embedding device
     output_ids = input_ids.clone()
     next_token = input_ids
 
-    # Main generation loop
     with torch.no_grad():
         for _ in range(max_new_tokens):
-            # Forward pass with proper device placement
             outputs = model(
-                input_ids=next_token,  # Only process last token
+                input_ids=next_token, 
                 past_key_values=past_key_values,
                 use_cache=True
             )
-
-            # Get next token prediction (logits will be on the last device)
             next_token_logits = outputs.logits[:, -1, :]
             next_token = next_token_logits.argmax(dim=-1).unsqueeze(-1)
-
-            # Move next token to embedding device for next iteration
             next_token = next_token.to(embed_device)
 
-            # Update KV cache
             past_key_values = outputs.past_key_values
 
-            # Append prediction
             output_ids = torch.cat([output_ids, next_token], dim=1)
 
-            # Optional: Check for EOS token
-            # print(next_token.item())
-            # print(model.config.eos_token_id)
             if next_token.item() in model.config.eos_token_id:
                 break
     return output_ids[:, origin_ids.shape[-1]:]
-
-# Example usage:
-# model = AutoModelForCausalLM.from_pretrained("your-model")
-# tokenizer = AutoTokenizer.from_pretrained("your-model")
-# input_text = "Your input text here"
-# input_ids = tokenizer.encode(input_text, return_tensors="pt")
-# output_ids = generate(model, input_ids, past_key_values=None)
-# output_text = tokenizer.decode(output_ids[0])
-
-# Run a command and capture its output
-# Example command, replace with your desired command
-
-
-# Print the standard output
 
 
 """KV Cache test"""
@@ -104,32 +76,24 @@ torch.serialization.add_safe_globals([DynamicCache])
 torch.serialization.add_safe_globals([set])
 
 
-def get_kv_cache(
+def preprocess_knowledge(
     model,
     tokenizer,
     prompt: str,
 ) -> DynamicCache:
     """
-    Prepare KV cache for a model distributed across multiple GPUs using device_map="auto"
-
+    Prepare knowledge kv cache for CAG.
     Args:
         model: HuggingFace model with automatic device mapping
         tokenizer: HuggingFace tokenizer
-        prompt: Input text to generate KV cache for
+        prompt: The knowledge to preprocess, which is basically a prompt
 
     Returns:
-        DynamicCache: Distributed KV cache
+        DynamicCache: KV Cache
     """
-    # Get embedding layer device
     embed_device = model.model.embed_tokens.weight.device
-
-    # Encode and move input to embedding device
     input_ids = tokenizer.encode(prompt, return_tensors="pt").to(embed_device)
-
-    # Initialize dynamic cache
     past_key_values = DynamicCache()
-
-    # Generate KV cache with proper device placement
     with torch.no_grad():
         outputs = model(
             input_ids=input_ids,
@@ -138,24 +102,29 @@ def get_kv_cache(
             output_attentions=False,
             output_hidden_states=False
         )
-
-    # The model's device mapping will automatically place each layer's
-    # KV cache on the correct device
     return outputs.past_key_values
 
 
 def write_kv_cache(kv: DynamicCache, path: str):
+    """
+    Write the KV Cache to a file.
+    """
     torch.save(kv, path)
 
 
 def clean_up(kv: DynamicCache, origin_len: int):
+    """
+    Truncate the KV Cache to the original length.
+    """
     for i in range(len(kv.key_cache)):
         kv.key_cache[i] = kv.key_cache[i][:, :, :origin_len, :]
         kv.value_cache[i] = kv.value_cache[i][:, :, :origin_len, :]
 
 
 def read_kv_cache(path: str) -> DynamicCache:
-    # kv = torch.load(path)
+    """
+    Read the KV Cache from a file.
+    """
     kv = torch.load(path, weights_only=True)
     return kv
 
@@ -193,20 +162,11 @@ def prepare_kvcache(documents, filepath: str = "./data_cache/cache_knowledges.pt
     """
     # Get the knowledge cache
     t1 = time()
-    try:
-        kv = get_kv_cache(model, tokenizer, knowledges)
-        print("kvlen: ", kv.key_cache[0].shape[-2])
-        write_kv_cache(kv, filepath)
-        t2 = time()
-        # command = ["nvidia-smi"]
-        # result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        # print(result.stdout)
-        return kv, t2 - t1
-    except Exception as e:
-        print("Error: ", e)
-        # command = ["nvidia-smi"]
-        # result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        # print(result.stdout)
+    kv = preprocess_knowledge(model, tokenizer, knowledges)
+    print("kvlen: ", kv.key_cache[0].shape[-2])
+    write_kv_cache(kv, filepath)
+    t2 = time()
+    return kv, t2 - t1
 
 
 def get_kis_dataset(filepath: str):
@@ -381,7 +341,7 @@ def kvcache_test(args: argparse.Namespace):
     """
             generate_t1 = time()
             input_ids = tokenizer.encode(prompt, return_tensors="pt").to(model.device)
-            output = generate(model, input_ids, DynamicCache())  # knowledge_cache)
+            output = generate(model, input_ids, DynamicCache()) 
             generated_text = tokenizer.decode(output[0], skip_special_tokens=True, temperature=None)
             generate_t2 = time()
         else:
@@ -392,7 +352,7 @@ def kvcache_test(args: argparse.Namespace):
             generate_t1 = time()
             clean_up(knowledge_cache, kv_len)
             input_ids = tokenizer.encode(prompt, return_tensors="pt").to(model.device)
-            output = generate(model, input_ids, knowledge_cache)  # knowledge_cache)
+            output = generate(model, input_ids, knowledge_cache)
             generated_text = tokenizer.decode(output[0], skip_special_tokens=True, temperature=None)
             generate_t2 = time()
 

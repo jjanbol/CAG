@@ -116,6 +116,32 @@ def getBM25Retriever(documents: list[str], similarity_top_k: int = 1):
 
     return bm25_retriever, t2 - t1
 
+def getJinaRetriever(documents: list[str], similarity_top_k: int = 1):
+    """Jina Embedding model"""
+    try:
+        JINA_API_KEY = get_env()["JINA_API_KEY"]
+        from llama_index.embeddings.jinaai import JinaEmbedding
+        model_name = "jina-embeddings-v3"
+        Settings.embed_model = JinaEmbedding(
+            api_key=JINA_API_KEY,
+            model=model_name,
+            task="retrieval.passage",
+        )
+
+        # Create the Jina retriever
+        t1 = time()
+        index = VectorStoreIndex.from_documents(documents)
+        Jina_retriever = index.as_retriever(similarity_top_k=similarity_top_k)
+        t2 = time()
+        logger.info(f"Jina retriever prepared in {t2 - t1:.2f} seconds.")
+        return Jina_retriever, t2 - t1
+    except ImportError:
+        logger.error("Failed to import JinaEmbedding. Please install jinaai package.")
+        raise
+    except Exception as e:
+        logger.error(f"Error creating Jina retriever: {str(e)}")
+        raise
+
 def get_kis_dataset(filepath: str):
     df = pd.read_csv(filepath)
     dataset = zip(df['sample_question'], df['sample_ground_truth'])
@@ -244,6 +270,9 @@ def rag_test(args: argparse.Namespace):
         logger.info(f"Testing {args.index.upper()} retriever with {len(documents)} documents.")
     if args.index == "bm25":
         retriever, prepare_time = getBM25Retriever(documents, similarity_top_k=args.topk)
+    if args.index == "jina":
+        retriever, prepare_time = getJinaRetriever(documents, similarity_top_k=args.topk)
+        logger.info(f"Testing {args.index.upper()} retriever with {len(documents)} documents.")
         
     print(f"Retriever {args.index.upper()} prepared in {prepare_time} seconds")
     with open(args.output, "a") as f:
@@ -374,7 +403,7 @@ if __name__ == "__main__":
     # parser.add_argument('--method', choices=['rag', 'kvcache'], required=True, help='Method to use (rag or kvcache)')
     parser.add_argument('--modelname', required=False, default="meta-llama/Llama-3.2-1B-Instruct", type=str, help='Model name to use')
     parser.add_argument('--quantized', required=False, default=False, type=bool, help='Quantized model')
-    parser.add_argument('--index', choices=['gemini', 'openai', 'bm25'], required=True, help='Index to use (gemini, openai, bm25)')
+    parser.add_argument('--index', choices=['gemini', 'openai', 'bm25', 'jina'], required=True, help='Index to use (gemini, openai, bm25, jina)')
     parser.add_argument('--similarity', choices=['bertscore'], required=True, help='Similarity metric to use (bertscore)')
     parser.add_argument('--output', required=True, type=str, help='Output file to save the results')
     parser.add_argument('--maxQuestion', required=False, default=None ,type=int, help='Maximum number of questions to test')

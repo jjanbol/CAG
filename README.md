@@ -113,6 +113,44 @@ python ./rag.py --index "bm25" --dataset "hotpotqa-train" --similarity bertscore
 > Multiple evaluation could be a relatively better approach.
 > 
 
+#### `Docker`
+
+To build the docker image, run
+```bash
+ docker build -t my-cag-app .
+ ```
+
+ and to run the container, run this for GPU users
+
+```bash
+docker run --gpus all -it --rm my-cag-app
+```
+OR
+```bash
+docker run -it --rm my-cag-app
+```
+for CPU users.
+
+if the .env file details were empty while building you will get error similar to this below
+
+```bash
+Traceback (most recent call last):
+  File "/app/./kvcache.py", line 35, in <module>
+    env = validate_env_variables()
+          ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/./kvcache.py", line 31, in validate_env_variables
+    raise ValueError(f"Missing required environment variable: {key}")
+ValueError: Missing required environment variable: HF_TOKEN
+``` 
+
+so ensure you populate the `.env` file before building the docker image 
+
+Note that the he `CMD` directive in the Dockerfile runs the `kvcache.py ` script by default. You can override this in the docker run command if you'd like to execute other scripts like rag.py. For example:
+
+```bash
+docker run --gpus all -it --rm my-cag-app python ./rag.py --index "bm25" --dataset "hotpotqa-train" --similarity bertscore --maxKnowledge 80 --maxParagraph 100 --maxQuestion 80 --topk 3 --modelname "meta-llama/Llama-3.1-8B-Instruct" --randomSeed 0 --output "./rag_results.txt"
+```
+
 ## Citation
 ```
 @misc{chan2024dontragcacheaugmentedgeneration,

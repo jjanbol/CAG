@@ -8,6 +8,11 @@ from sentence_transformers import SentenceTransformer, util
 from transformers import BitsAndBytesConfig, AutoTokenizer, AutoModelForCausalLM
 from transformers.cache_utils import DynamicCache
 import random
+import logging 
+
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 
 def get_env():
@@ -18,12 +23,30 @@ def get_env():
             env_dict[key] = value.strip('"')
     return env_dict
 
+def validate_env_variables():
+    required_keys = ["HF_TOKEN"]
+    env = get_env()
+    for key in required_keys:
+        if key not in env or not env[key]:
+            raise ValueError(f"Missing required environment variable: {key}")
+    return env
 
 """Hugging Face Llama model"""
-HF_TOKEN = get_env()["HF_TOKEN"]
+env = validate_env_variables()
+HF_TOKEN = env["HF_TOKEN"]
+
 global model_name, model, tokenizer
 global rand_seed
 
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+logger.info(f"Using device: {device}")
+
+
+"""KV Cache test"""
+# Allowlist the DynamicCache class
+torch.serialization.add_safe_globals([DynamicCache])
+torch.serialization.add_safe_globals([set])
 
 
 def generate(
@@ -70,10 +93,7 @@ def generate(
     return output_ids[:, origin_ids.shape[-1]:]
 
 
-"""KV Cache test"""
-# Allowlist the DynamicCache class
-torch.serialization.add_safe_globals([DynamicCache])
-torch.serialization.add_safe_globals([set])
+
 
 
 def preprocess_knowledge(
@@ -106,6 +126,7 @@ def preprocess_knowledge(
 
 
 def write_kv_cache(kv: DynamicCache, path: str):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     """
     Write the KV Cache to a file.
     """
@@ -123,10 +144,14 @@ def clean_up(kv: DynamicCache, origin_len: int):
 
 def read_kv_cache(path: str) -> DynamicCache:
     """
-    Read the KV Cache from a file.
+    Read the KV Cache from a file. If the cache file is invalid or empty, return None.
     """
-    kv = torch.load(path, weights_only=True)
-    return kv
+    if os.path.exists(path) and os.path.getsize(path) > 0:
+        kv = torch.load(path, weights_only=True)
+        return kv
+    else:
+        # Regenerate cache if it doesn't exist or is too small
+        return None
 
 
 """Sentence-BERT for evaluate semantic similarity"""
@@ -166,6 +191,7 @@ def prepare_kvcache(documents, filepath: str = "./data_cache/cache_knowledges.pt
     print("kvlen: ", kv.key_cache[0].shape[-2])
     write_kv_cache(kv, filepath)
     t2 = time()
+    logger.info(f"KV cache prepared in {t2 - t1:.2f} seconds.")
     return kv, t2 - t1
 
 

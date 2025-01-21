@@ -10,6 +10,13 @@ import json
 from transformers import BitsAndBytesConfig
 import random
 
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+
+
 def get_env():
     env_dict = {}
     with open (file=".env" if os.path.exists(".env") else "env", mode="r") as f:
@@ -19,6 +26,9 @@ def get_env():
     return env_dict
 
 """Hugging Face Llama model"""
+
+env = get_env()
+
 HF_TOKEN = get_env()["HF_TOKEN"]
 global model_name, model, tokenizer
 global rand_seed
@@ -65,7 +75,7 @@ def getOpenAIRetriever(documents: list[str], similarity_top_k: int = 1):
     index = VectorStoreIndex.from_documents(documents)
     OpenAI_retriever = index.as_retriever(similarity_top_k=similarity_top_k)
     t2 = time()
-    
+    logger.info(f"OpenAI retriever prepared in {t2 - t1:.2f} seconds.")
     return OpenAI_retriever, t2 - t1
     
 
@@ -82,7 +92,7 @@ def getGeminiRetriever(documents: list[str], similarity_top_k: int = 1):
     index = VectorStoreIndex.from_documents(documents)
     Gemini_retriever = index.as_retriever(similarity_top_k=similarity_top_k)
     t2 = time()
-    
+    logger.info(f"Gemini retriever prepared in {t2 - t1:.2f} seconds.")
     return Gemini_retriever, t2 - t1
     
 def getBM25Retriever(documents: list[str], similarity_top_k: int = 1):
@@ -231,6 +241,7 @@ def rag_test(args: argparse.Namespace):
         retriever, prepare_time = getGeminiRetriever(documents, similarity_top_k=args.topk)
     if args.index == "openai":
         retriever, prepare_time = getOpenAIRetriever(documents, similarity_top_k=args.topk)
+        logger.info(f"Testing {args.index.upper()} retriever with {len(documents)} documents.")
     if args.index == "bm25":
         retriever, prepare_time = getBM25Retriever(documents, similarity_top_k=args.topk)
         

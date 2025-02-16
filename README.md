@@ -1,5 +1,7 @@
 # Cache-Augmented Generation (CAG)
 
+<img src="https://github.com/hhhuang/CAG/blob/main/overview.png?raw=true" width=600 alt="Overview of CAG">
+
 Retrieval-Augmented Generation (RAG) has emerged as a powerful approach for enhancing language models by integrating external knowledge sources. However, RAG also introduces several challenges, including:  
 - **Retrieval Latency** – Delays caused by real-time retrieval steps.  
 - **Retrieval Errors** – Inaccuracies in selecting relevant documents.  
@@ -16,9 +18,9 @@ To address these limitations, we propose **Cache-Augmented Generation (CAG)**—
 - **Limited Knowledge Size** – CAG requires the entire knowledge source to fit within the context window, making it less suitable for tasks involving extremely large datasets.  
 - **Context Length Constraints** – The performance of LLMs may degrade with very long contexts ([reference](https://arxiv.org/pdf/2404.02060v2)).  
 
-Our [paper](https://arxiv.org/abs/2412.15605) investigates the relationship between model performance and context length, providing insights into scenarios where CAG excels.  
+Our [paper](https://arxiv.org/abs/2412.15605), which will be presented at [the ACM Web Conference 2025](https://www2025.thewebconf.org/) as a short paper, investigates the relationship between model performance and context length, providing insights into scenarios where CAG excels.  
 
-The limitations of CAG are rapidly being addressed by advancements in LLMs with longer context windows and improved capabilities for extracting relevant information from extended inputs. As these models continue to evolve, **CAG** is expected to handle increasingly complex applications, making it a practical and scalable alternative to traditional RAG.  
+The limitations of CAG are rapidly being addressed by advancements in LLMs with longer context windows and improved capabilities for extracting relevant information from extended inputs. As these models continue to evolve, CAG is expected to handle increasingly complex applications, making it a practical and scalable alternative to traditional RAG.  
 
 ---
 
@@ -164,4 +166,6 @@ docker run --gpus all -it --rm my-cag-app python ./rag.py --index "bm25" --datas
 }
 ```
 
-
+## Acknowledgments
+This work was partially supported by National Science and Technology Council (NSTC), Taiwan, under the grant 112-2221-E-001-016-MY3, by Academia Sinica, under the grant 236d-1120205, and by National Center for High-performance Computing (NCHC), National Applied Research Laboratories (NARLabs), and NSTC under the project "Taiwan's 113th year endeavoring in the promotion of a trustworthy generative AI large language model and the cultivation of literacy capabilities (Trustworthy AI Dialog Engine, TAIDE)".
+We sincerely thank [Discover AI](https://www.youtube.com/watch?v=NaEf_uiFX6o) and the many individuals who have introduced, shared, and discussed our work, contributing to its broader visibility and impact.
